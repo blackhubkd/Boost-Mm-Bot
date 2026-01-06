@@ -49,10 +49,10 @@ MM_TIERS = {
 
 # MM Role IDs - UPDATE THESE WITH YOUR ROLE IDS
 MM_ROLE_IDS = {
-    "basic": 1234567890,        # 0-150M role ID
-    "advanced": 1234567890,     # 150-500M role ID
-    "premium": 1234567890,      # 500M+ role ID
-    "og": 1234567890            # OG MM role ID
+    "basic": 1458128965351768064,        # 0-150M role ID
+    "advanced": 1458129219862134794,     # 150-500M role ID
+    "premium": 1458129300065751141,      # 500M+ role ID
+    "og": 1458129476423778305            # OG MM role ID
 }
 
 def save_data():
@@ -167,7 +167,7 @@ class TierSelect(Select):
             ),
             discord.SelectOption(
                 label='OG Middleman',
-                description='Premium service for all trades',
+                description='Any Value Trades',
                 value='og',
                 emoji='💎'
             )
@@ -423,7 +423,7 @@ async def proof_command(ctx):
     tier = ticket.get('tier', 'Unknown')
 
     # CHANGE THIS TO YOUR PROOF CHANNEL ID
-    PROOF_CHANNEL_ID = 1234567890
+    PROOF_CHANNEL_ID = 1458163922262560840
     proof_channel = ctx.guild.get_channel(PROOF_CHANNEL_ID)
 
     if not proof_channel:
