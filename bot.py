@@ -510,7 +510,7 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
         embed = discord.Embed(
     title=f"⚖️ {MM_TIERS[tier]['name']} Ticket",
     description=(
-        f"📋 **Middleman Trade Request**\n\n"
+        f"**📋 Middleman Trade Request**\n\n"
         f"**Selected Tier:** {MM_TIERS[tier]['name']}\n"
         f"**Range:** {MM_TIERS[tier]['range']}"
     ),
@@ -528,6 +528,11 @@ embed.set_footer(
     icon_url=user.display_avatar.url
 )
 embed.timestamp = datetime.utcnow()
+
+await ticket_channel.send(
+    content=user.mention,
+    embed=embed
+    )
 
 await ticket_channel.send(
     content=user.mention,
