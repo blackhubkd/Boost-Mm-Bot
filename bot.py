@@ -533,11 +533,6 @@ await ticket_channel.send(
     content=user.mention,
     embed=embed
     )
-
-await ticket_channel.send(
-    content=user.mention,
-    embed=embed
-    )
         
         await ticket_channel.send(embed=details_embed, view=MMTicketView())
         
