@@ -506,7 +506,11 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
         if tier_role:
             ping_message = f"{tier_role.mention} - New {MM_TIERS[tier]['name']} ticket opened!"
             await ticket_channel.send(ping_message, allowed_mentions=discord.AllowedMentions(roles=True))
-        
+
+        embed = discord.Embed(
+            title=f"⚖️ {MM_TIERS[tier]['name']} Ticket",
+            color=MM_COLOR
+        )
         embed.set_footer(text=f'Ticket created by {user}', icon_url=user.display_avatar.url)
         embed.timestamp = datetime.utcnow()
         
