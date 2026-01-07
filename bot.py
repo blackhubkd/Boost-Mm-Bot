@@ -46,24 +46,28 @@ MM_TIERS = {
     'basic': {
         'name': '0-150M Middleman',
         'range': '0-150M',
+        'description': 'Trades under Dragon / Traited Garamas etc',
         'emoji': '🟢',
         'level': 1
     },
     'advanced': {
         'name': '150-500M Middleman',
         'range': '150M-500M',
+        'description': 'Trades including Base Dragon / Mutated Garamas',
         'emoji': '🔵',
         'level': 2
     },
     'premium': {
         'name': '500M+ Middleman',
         'range': '500M+',
+        'description': 'Trades including Mutated / Traited Dragons',
         'emoji': '🟣',
         'level': 3
     },
     'og': {
         'name': 'OG Middleman',
         'range': 'All Trades',
+        'description': 'Trades including OG / Headless Horseman',
         'emoji': '💎',
         'level': 4
     }
@@ -194,25 +198,25 @@ class TierSelect(Select):
         options = [
             discord.SelectOption(
                 label='0-150M Middleman',
-                description='Trades up to 150M',
+                description='Trades under Dragon / Traited Garamas etc',
                 value='basic',
                 emoji='🟢'
             ),
             discord.SelectOption(
                 label='150-500M Middleman',
-                description='Trades between 150M-500M',
+                description='Trades including Base Dragon / Mutated Garamas',
                 value='advanced',
                 emoji='🔵'
             ),
             discord.SelectOption(
                 label='500M+ Middleman',
-                description='Trades above 500M',
+                description='Trades including Mutated / Traited Dragons',
                 value='premium',
                 emoji='🟣'
             ),
             discord.SelectOption(
                 label='OG Middleman',
-                description='OG Trades Only',
+                description='Trades including OG / Headless Horseman',
                 value='og',
                 emoji='💎'
             )
@@ -294,6 +298,191 @@ class MMTicketView(View):
         await interaction.response.defer()
         await close_ticket(interaction.channel, interaction.user)
 
+# Coinflip Button View
+class CoinflipView(View):
+    def __init__(self, user1, user2, total_rounds, is_first_to):
+        super().__init__(timeout=60)
+        self.user1 = user1
+        self.user2 = user2
+        self.total_rounds = total_rounds
+        self.is_first_to = is_first_to
+        self.user1_choice = None
+        self.user2_choice = None
+        self.chosen_users = []
+    
+    @discord.ui.button(label='Heads', emoji='🪙', style=discord.ButtonStyle.primary, custom_id='heads_cf')
+    async def heads_button(self, interaction: discord.Interaction, button: Button):
+        # Check if user is one of the two players
+        if interaction.user.id not in [self.user1.id, self.user2.id]:
+            return await interaction.response.send_message('❌ You are not part of this coinflip!', ephemeral=True)
+        
+        # Check if user already chose
+        if interaction.user.id in self.chosen_users:
+            return await interaction.response.send_message('❌ You already made your choice!', ephemeral=True)
+        
+        # Assign choice
+        if interaction.user.id == self.user1.id:
+            self.user1_choice = 'heads'
+        else:
+            self.user2_choice = 'heads'
+        
+        self.chosen_users.append(interaction.user.id)
+        
+        # Disable the heads button
+        button.disabled = True
+        
+        # Update embed
+        mode_text = f"First to {self.total_rounds}" if self.is_first_to else f"Best of {self.total_rounds}"
+        embed = discord.Embed(
+            title='🪙 Choose Your Side',
+            description=f'**{self.user1.mention}** vs **{self.user2.mention}**\n\n**Mode:** {mode_text}\n\n**Select your side below:**',
+            color=MM_COLOR
+        )
+        
+        if self.user1_choice:
+            embed.add_field(name=f'{self.user1.display_name} has chosen', value=f'**{self.user1_choice.upper()}**', inline=False)
+        if self.user2_choice:
+            embed.add_field(name=f'{self.user2.display_name} has chosen', value=f'**{self.user2_choice.upper()}**', inline=False)
+        
+        await interaction.response.edit_message(embed=embed, view=self)
+        
+        # If both chosen, start the game
+        if len(self.chosen_users) == 2:
+            await asyncio.sleep(1)
+            await self.start_coinflip(interaction)
+    
+    @discord.ui.button(label='Tails', emoji='🪙', style=discord.ButtonStyle.secondary, custom_id='tails_cf')
+    async def tails_button(self, interaction: discord.Interaction, button: Button):
+        # Check if user is one of the two players
+        if interaction.user.id not in [self.user1.id, self.user2.id]:
+            return await interaction.response.send_message('❌ You are not part of this coinflip!', ephemeral=True)
+        
+        # Check if user already chose
+        if interaction.user.id in self.chosen_users:
+            return await interaction.response.send_message('❌ You already made your choice!', ephemeral=True)
+        
+        # Assign choice
+        if interaction.user.id == self.user1.id:
+            self.user1_choice = 'tails'
+        else:
+            self.user2_choice = 'tails'
+        
+        self.chosen_users.append(interaction.user.id)
+        
+        # Disable the tails button
+        button.disabled = True
+        
+        # Update embed
+        mode_text = f"First to {self.total_rounds}" if self.is_first_to else f"Best of {self.total_rounds}"
+        embed = discord.Embed(
+            title='🪙 Choose Your Side',
+            description=f'**{self.user1.mention}** vs **{self.user2.mention}**\n\n**Mode:** {mode_text}\n\n**Select your side below:**',
+            color=MM_COLOR
+        )
+        
+        if self.user1_choice:
+            embed.add_field(name=f'{self.user1.display_name} has chosen', value=f'**{self.user1_choice.upper()}**', inline=False)
+        if self.user2_choice:
+            embed.add_field(name=f'{self.user2.display_name} has chosen', value=f'**{self.user2_choice.upper()}**', inline=False)
+        
+        await interaction.response.edit_message(embed=embed, view=self)
+        
+        # If both chosen, start the game
+        if len(self.chosen_users) == 2:
+            await asyncio.sleep(1)
+            await self.start_coinflip(interaction)
+    
+    async def start_coinflip(self, interaction):
+        # Disable all buttons
+        for item in self.children:
+            item.disabled = True
+        
+        mode_text = f"First to {self.total_rounds}" if self.is_first_to else f"Best of {self.total_rounds}"
+        
+        # Starting embed
+        start_embed = discord.Embed(
+            title='🪙 Coinflip Starting!',
+            description=f'**{self.user1.mention}** chose **{self.user1_choice.upper()}**\n**{self.user2.mention}** chose **{self.user2_choice.upper()}**\n\n**Mode:** {mode_text}',
+            color=MM_COLOR
+        )
+        start_embed.timestamp = datetime.utcnow()
+        
+        await interaction.message.edit(embed=start_embed, view=self)
+        await asyncio.sleep(2)
+        
+        # Play rounds
+        user1_wins = 0
+        user2_wins = 0
+        rounds_played = 0
+        results = []
+        
+        while rounds_played < self.total_rounds:
+            flip_result = random.choice(['heads', 'tails'])
+            rounds_played += 1
+            
+            if flip_result == self.user1_choice:
+                user1_wins += 1
+                results.append(f"Round {rounds_played}: **{flip_result.upper()}** - {self.user1.mention} wins! 🎉")
+            else:
+                user2_wins += 1
+                results.append(f"Round {rounds_played}: **{flip_result.upper()}** - {self.user2.mention} wins! 🎉")
+            
+            # Check if someone won (first to mode)
+            if self.is_first_to and (user1_wins >= self.total_rounds or user2_wins >= self.total_rounds):
+                break
+            
+            # Update embed
+            progress_embed = discord.Embed(
+                title='🪙 Coinflip in Progress...',
+                description=f'**{self.user1.mention}** ({self.user1_choice.upper()}): {user1_wins} wins\n**{self.user2.mention}** ({self.user2_choice.upper()}): {user2_wins} wins\n\n**Mode:** {mode_text}\n**Rounds Played:** {rounds_played}/{self.total_rounds}',
+                color=0xFFA500
+            )
+            
+            # Show last 5 results
+            recent_results = '\n'.join(results[-5:])
+            progress_embed.add_field(name='Recent Results', value=recent_results if recent_results else 'None yet', inline=False)
+            progress_embed.timestamp = datetime.utcnow()
+            
+            await interaction.message.edit(embed=progress_embed, view=self)
+            await asyncio.sleep(1.5)
+        
+        # Determine final winner
+        if user1_wins > user2_wins:
+            final_winner = self.user1
+            final_color = 0x57F287
+        elif user2_wins > user1_wins:
+            final_winner = self.user2
+            final_color = 0x57F287
+        else:
+            final_winner = None
+            final_color = 0xFEE75C
+        
+        # Final embed
+        final_embed = discord.Embed(
+            title='🪙 Coinflip Complete!',
+            color=final_color
+        )
+        
+        if final_winner:
+            final_embed.description = f'🎊 **{final_winner.mention} WINS!** 🎊\n\n**Final Score:**\n{self.user1.mention}: {user1_wins} wins\n{self.user2.mention}: {user2_wins} wins'
+        else:
+            final_embed.description = f'🤝 **IT\'S A TIE!** 🤝\n\n**Final Score:**\n{self.user1.mention}: {user1_wins} wins\n{self.user2.mention}: {user2_wins} wins'
+        
+        final_embed.add_field(name='Mode', value=mode_text, inline=True)
+        final_embed.add_field(name='Total Rounds', value=str(rounds_played), inline=True)
+        
+        # Show all results if not too many
+        if rounds_played <= 10:
+            all_results = '\n'.join(results)
+            final_embed.add_field(name='All Results', value=all_results, inline=False)
+        else:
+            recent_results = '\n'.join(results[-10:])
+            final_embed.add_field(name='Last 10 Results', value=recent_results, inline=False)
+        
+        final_embed.timestamp = datetime.utcnow()
+        
+        await interaction.message.edit(embed=final_embed, view=self)
+
 # Events
 @bot.event
 async def on_ready():
@@ -312,7 +501,7 @@ async def setup(ctx):
     """Create MM ticket panel"""
     embed = discord.Embed(
         title='⚖️ Middleman Services',
-        description='Click the button below to open a middleman ticket.\n\n**Available Tiers:**\n🟢 **0-150M Middleman** - Trades up to 150M\n🔵 **150-500M Middleman** - Trades up to 500M\n🟣 **500M+ Middleman** - Trades above 500M\n💎 **OG Middleman** - OG Trades Only',
+        description='Click the button below to open a middleman ticket.\n\n**Available Tiers:**\n🟢 **0-150M** - Trades under Dragon / Traited Garamas etc\n🔵 **150-500M** - Trades including Base Dragon / Mutated Garamas\n🟣 **500M+** - Trades including Mutated / Traited Dragons\n💎 **OG** - Trades including OG / Headless Horseman',
         color=MM_COLOR
     )
     embed.set_footer(text='Select your tier to get started')
@@ -536,15 +725,14 @@ async def help_command(ctx):
     
     embed.add_field(
         name='🪙 Fun Commands',
-        value='`$cf @user1 heads @user2 tails [ft] <number>` - Coinflip game\n'
+        value='`$cf @user1 vs @user2 [ft] <number>` - Coinflip game\n'
               'Examples:\n'
-              '• `$cf @user1 heads @user2 tails ft 3` (First to 3)\n'
-              '• `$cf @user1 heads @user2 tails 5` (Best of 5)',
+              '• `$cf @user1 vs @user2 ft 3` (First to 3)\n'
+              '• `$cf user1 vs user2 5` (Best of 5)',
         inline=False
     )
     
     embed.set_footer(text='Use $help to see this message again')
-    embed.timestamp = datetime.utcnow()
     
     await ctx.reply(embed=embed)
 
@@ -675,6 +863,82 @@ async def unclaim_command(ctx):
     
     await ctx.reply(embed=embed)
     save_data()
+
+# Coinflip Command
+@bot.command(name='cf')
+async def coinflip(ctx, user1_input: str = None, vs: str = None, user2_input: str = None, mode: str = None, rounds: int = None):
+    """
+    Coinflip command
+    Usage: $cf @user1 vs @user2 ft 3
+           $cf user1 vs user2 5
+    """
+    # Validate inputs
+    if not all([user1_input, vs, user2_input]):
+        return await ctx.reply('❌ Usage: `$cf @user1 vs @user2 [ft] <number>`\nExample: `$cf @user1 vs @user2 ft 3` or `$cf user1 vs user2 5`')
+    
+    if vs.lower() != 'vs':
+        return await ctx.reply('❌ Please use "vs" between usernames!\nExample: `$cf @user1 vs @user2 ft 3`')
+    
+    # Convert user inputs to Member objects
+    user1 = None
+    user2 = None
+    
+    # Try to find user1
+    if user1_input.startswith('<@'):
+        try:
+            user_id = int(user1_input.strip('<@!>'))
+            user1 = ctx.guild.get_member(user_id)
+        except:
+            pass
+    else:
+        user1 = discord.utils.find(lambda m: m.name.lower() == user1_input.lower() or (m.nick and m.nick.lower() == user1_input.lower()), ctx.guild.members)
+    
+    # Try to find user2
+    if user2_input.startswith('<@'):
+        try:
+            user_id = int(user2_input.strip('<@!>'))
+            user2 = ctx.guild.get_member(user_id)
+        except:
+            pass
+    else:
+        user2 = discord.utils.find(lambda m: m.name.lower() == user2_input.lower() or (m.nick and m.nick.lower() == user2_input.lower()), ctx.guild.members)
+    
+    if not user1:
+        return await ctx.reply(f'❌ Could not find user: {user1_input}')
+    if not user2:
+        return await ctx.reply(f'❌ Could not find user: {user2_input}')
+    
+    # Parse mode and rounds
+    is_first_to = False
+    total_rounds = 1
+    
+    if mode:
+        if mode.lower() == 'ft':
+            if rounds is None:
+                return await ctx.reply('❌ Please specify the number of rounds for "ft" mode!\nExample: `$cf @user1 vs @user2 ft 3`')
+            is_first_to = True
+            total_rounds = rounds
+        elif mode.isdigit():
+            total_rounds = int(mode)
+            is_first_to = False
+        else:
+            return await ctx.reply('❌ Invalid mode! Use "ft" for first to, or just a number for best of.')
+    
+    if total_rounds < 1 or total_rounds > 200:
+        return await ctx.reply('❌ Number of rounds must be between 1 and 200!')
+    
+    # Create initial embed
+    mode_text = f"First to {total_rounds}" if is_first_to else f"Best of {total_rounds}"
+    
+    embed = discord.Embed(
+        title='🪙 Choose Your Side',
+        description=f'**{user1.mention}** vs **{user2.mention}**\n\n**Mode:** {mode_text}\n\n**Select your side below:**',
+        color=MM_COLOR
+    )
+    embed.timestamp = datetime.utcnow()
+    
+    view = CoinflipView(user1, user2, total_rounds, is_first_to)
+    await ctx.send(embed=embed, view=view)
 
 # Helper Functions
 async def create_ticket_with_details(guild, user, tier, trader, giving, receiving, both_join, tip):
