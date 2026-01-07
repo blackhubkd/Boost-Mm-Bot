@@ -70,10 +70,10 @@ MM_TIERS = {
 
 # MM Role IDs - UPDATE THESE WITH YOUR ROLE IDS
 MM_ROLE_IDS = {
-    "basic": 1234567890,        # 0-150M role ID
-    "advanced": 1234567890,     # 150-500M role ID
-    "premium": 1234567890,      # 500M+ role ID
-    "og": 1234567890            # OG MM role ID
+    "basic": 1458128965351768064,        # 0-150M role ID
+    "advanced": 1458129219862134794,     # 150-500M role ID
+    "premium": 1458129300065751141,      # 500M+ role ID
+    "og": 1458129476423778305            # OG MM role ID
 }
 
 def save_data():
