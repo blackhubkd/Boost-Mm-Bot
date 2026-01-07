@@ -80,7 +80,7 @@ MM_ROLE_IDS = {
 def save_data():
     data = {
         'active_tickets': active_tickets,
-        'claimed_tickets': claimed_tickets
+        'claimed_tickets': claimed_tickets,
         'mm_stats': mm_stats
     }
     with open('bot_data.json', 'w') as f:
