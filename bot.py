@@ -449,7 +449,7 @@ async def proof_command(ctx):
 
 # Helper Functions
 async def create_ticket_with_details(guild, user, tier, trader, giving, receiving, both_join, tip):
-    """Create MM ticket"""
+    """Create MM ticket with improved combined embed"""
     try:
         category = discord.utils.get(guild.categories, name=TICKET_CATEGORY)
         if not category:
@@ -507,32 +507,57 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
             ping_message = f"{tier_role.mention} - New {MM_TIERS[tier]['name']} ticket opened!"
             await ticket_channel.send(ping_message, allowed_mentions=discord.AllowedMentions(roles=True))
         
+        # COMBINED IMPROVED EMBED
         embed = discord.Embed(
-            title=f"⚖️ {MM_TIERS[tier]['name']} Ticket",
-            description=f"Welcome {user.mention}!\n\nOur team will be with you shortly.",
+            title=f"⚖️ {MM_TIERS[tier]['name']}",
+            description=f"Welcome {user.mention}!\n\nOur team will be with you shortly. Please wait for a middleman to claim this ticket.",
             color=MM_COLOR
         )
-        embed.set_footer(text=f'Ticket created by {user}', icon_url=user.display_avatar.url)
+        
+        # Trade Details Section
+        embed.add_field(
+            name="📊 Trade Details",
+            value=f"**Range:** {MM_TIERS[tier]['range']}\n**Status:** 🟡 Waiting for Middleman",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="👥 Trading With",
+            value=trader,
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📤 You're Giving",
+            value=giving,
+            inline=True
+        )
+        
+        embed.add_field(
+            name="📥 You're Receiving",
+            value=receiving,
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🔗 Both Can Join Links?",
+            value=both_join,
+            inline=True
+        )
+        
+        embed.add_field(
+            name="💰 Tip",
+            value=tip if tip else "None",
+            inline=True
+        )
+        
+        embed.set_footer(
+            text=f'Ticket created by {user.name}',
+            icon_url=user.display_avatar.url
+        )
         embed.timestamp = datetime.utcnow()
         
-        await ticket_channel.send(content=user.mention, embed=embed)
-        
-        details_embed = discord.Embed(
-            title='📋 Middleman Trade Request',
-            description=f'**Selected Tier:** {MM_TIERS[tier]["name"]}\n**Range:** {MM_TIERS[tier]["range"]}',
-            color=MM_COLOR
-        )
-        
-        details_embed.add_field(name='Trading With', value=trader, inline=False)
-        details_embed.add_field(name='Requester Giving', value=giving, inline=False)
-        details_embed.add_field(name='Requester Receiving', value=receiving, inline=False)
-        details_embed.add_field(name='Both Can Join Links?', value=both_join, inline=False)
-        details_embed.add_field(name='Tip', value=tip, inline=False)
-        
-        details_embed.set_footer(text=f'Requested by {user}', icon_url=user.display_avatar.url)
-        details_embed.timestamp = datetime.utcnow()
-        
-        await ticket_channel.send(embed=details_embed, view=MMTicketView())
+        await ticket_channel.send(embed=embed, view=MMTicketView())
         
     except Exception as e:
         print(f'[ERROR] MM Ticket creation failed: {e}')
