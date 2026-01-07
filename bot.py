@@ -626,6 +626,7 @@ async def remove_user(ctx, member: discord.Member = None):
 @bot.command(name='proof')
 async def proof_command(ctx):
     """Send MM proof to proof channel"""
+    PROOF_CHANNEL_ID = 1458163922262560840
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in a ticket.')
 
