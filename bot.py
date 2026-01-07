@@ -244,6 +244,29 @@ class SupportTicketView(View):
         await interaction.response.defer()
         await close_ticket(interaction.channel, interaction.user)
 
+# MM Setup View (Persistent)
+class MMSetupView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label='Open MM Ticket', emoji='⚖️', style=discord.ButtonStyle.primary, custom_id='open_mm_ticket_main')
+    async def open_mm_button(self, interaction: discord.Interaction, button: Button):
+        tier_embed = discord.Embed(
+            title='Select your middleman tier:',
+            color=MM_COLOR
+        )
+        await interaction.response.send_message(embed=tier_embed, view=TierSelectView(), ephemeral=True)
+
+# Support Setup View (Persistent)
+class SupportSetupView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label='Open Support Ticket', emoji='🎫', style=discord.ButtonStyle.primary, custom_id='open_support_ticket_main')
+    async def open_support_button(self, interaction: discord.Interaction, button: Button):
+        modal = SupportTicketModal()
+        await interaction.response.send_modal(modal)
+
 # Tier Selection Dropdown
 class TierSelect(Select):
     def __init__(self):
@@ -552,6 +575,8 @@ async def on_ready():
     bot.add_view(TierSelectView())
     bot.add_view(MMTicketView())
     bot.add_view(SupportTicketView())
+    bot.add_view(MMSetupView())
+    bot.add_view(SupportSetupView())
     
     load_data()
 
@@ -580,7 +605,7 @@ async def setup(ctx):
     button.callback = button_callback
     view.add_item(button)
     
-    await ctx.send(embed=embed, view=view)
+    await ctx.send(embed=embed, view=MMSetupView())
     await ctx.message.delete()
 
 # Support Setup Command
@@ -606,7 +631,7 @@ async def support_setup(ctx):
     button.callback = button_callback
     view.add_item(button)
     
-    await ctx.send(embed=embed, view=view)
+    await ctx.send(embed=embed, view=SupportSetupView())
     await ctx.message.delete()
 
 # Claim Command
