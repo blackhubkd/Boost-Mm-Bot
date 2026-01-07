@@ -791,7 +791,7 @@ async def proof_command(ctx):
     embed.add_field(name='Gave', value=giving, inline=False)
     embed.add_field(name='Received', value=receiving, inline=False)
 
-    ticket_number = ctx.channel.name.replae('ticket-', '')
+    ticket_number = ctx.channel.name.replace('ticket-', '') 
     embed.set_footer(text=f"Ticket #{ticket_number}")
     embed.timestamp = datetime.utcnow()
 
