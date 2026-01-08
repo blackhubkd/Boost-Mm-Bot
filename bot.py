@@ -113,6 +113,20 @@ def can_see_tier(user_roles, ticket_tier):
     """Check if user with their roles can see a ticket of given tier"""
     user_role_ids = [role.id for role in user_roles]
     ticket_level = MM_TIERS[ticket_tier]['level']
+
+def is_mm_or_admin(user, guild):
+    """Check if user is MM or admin"""
+    # Check if admin
+    if user.guild_permissions.administrator:
+        return True
+    
+    # Check if user has any MM role
+    user_role_ids = [role.id for role in user.roles]
+    for role_id in MM_ROLE_IDS.values():
+        if role_id in user_role_ids:
+            return True
+    
+    return False
     
     # OG can see everything
     if MM_ROLE_IDS['og'] in user_role_ids:
@@ -682,6 +696,13 @@ async def support_setup(ctx):
 @bot.command(name='claim')
 async def claim(ctx):
     """Claim a ticket"""
+    
+    if not is_mm_or_admin(ctx.author, ctx.guild):
+        return await ctx.reply('❌ You do not have permission to use this command!')
+    
+    if not ctx.channel.name.startswith('ticket-'):
+        return await ctx.reply('❌ This command can only be used in ticket channels!')
+    
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in ticket channels!')
 
@@ -731,6 +752,13 @@ async def claim(ctx):
 @bot.command(name='close')
 async def close_command(ctx):
     """Close a ticket"""
+    
+    if not is_mm_or_admin(ctx.author, ctx.guild):
+        return await ctx.reply('❌ You do not have permission to use this command!')
+    
+    if not ctx.channel.name.startswith('ticket-'):
+        return await ctx.reply('❌ This command can only be used in ticket channels!')
+    
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in ticket channels!')
 
@@ -765,6 +793,11 @@ async def close_command(ctx):
 @bot.command(name='add')
 async def add_user(ctx, member: discord.Member = None):
     """Add user to ticket"""
+
+# Permission check
+    if not is_mm_or_admin(ctx.author, ctx.guild):
+        return await ctx.reply('❌ You do not have permission to use this command!')
+    
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in ticket channels!')
 
@@ -784,6 +817,14 @@ async def add_user(ctx, member: discord.Member = None):
 @bot.command(name='remove')
 async def remove_user(ctx, member: discord.Member = None):
     """Remove user from ticket"""
+
+    # Permission check
+    if not is_mm_or_admin(ctx.author, ctx.guild):
+        return await ctx.reply('❌ You do not have permission to use this command!')
+    
+    if not ctx.channel.name.startswith('ticket-'):
+        return await ctx.reply('❌ This command can only be used in ticket channels!')
+    
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in ticket channels!')
 
@@ -805,6 +846,11 @@ async def remove_user(ctx, member: discord.Member = None):
 async def proof_command(ctx):
     """Send MM proof to proof channel"""
     PROOF_CHANNEL_ID = 1458163922262560840
+
+# Permission check
+    if not is_mm_or_admin(ctx.author, ctx.guild):
+        return await ctx.reply('❌ You do not have permission to use this command!')
+    
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in a ticket.')
 
