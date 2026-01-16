@@ -126,15 +126,15 @@ def create_ticket_db(channel_id, user_id, ticket_type, **kwargs):
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO tickets (channel_id, user_id, ticket_type, tier, trader, giving, 
-                           receiving, both_join, tip, reason, details)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (
-        channel_id, user_id, ticket_type,
-        kwargs.get('tier'), kwargs.get('trader'), kwargs.get('giving'),
-        kwargs.get('receiving'), kwargs.get('both_join'), kwargs.get('tip'),
-        kwargs.get('reason'), kwargs.get('details')
-    ))
+    INSERT INTO tickets (channel_id, user_id, ticket_type, tier, trader, giving, receiving, tip, reason, details)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+""", (
+    channel_id, user_id, ticket_type,
+    kwargs.get('tier'), kwargs.get('trader'), kwargs.get('giving'),
+    kwargs.get('receiving'), kwargs.get('tip'),
+    kwargs.get('reason'), kwargs.get('details')
+))
+    
     conn.commit()
     cur.close()
     conn.close()
@@ -158,118 +158,8 @@ def claim_ticket_db(channel_id, user_id):
     cur.close()
     conn.close()
 
-def unclaim_ticket_db(channel_id):
-    """Mark ticket as unclaimed in database"""
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("UPDATE tickets SET claimed_by = NULL, status = 'open' WHERE channel_id = %s", (channel_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
 
-def delete_ticket_db(channel_id):
-    """Delete ticket from database"""
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM tickets WHERE channel_id = %s", (channel_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def increment_mm_stats(user_id):
-    """Add 1 to MM's completed ticket count"""
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO mm_stats (user_id, tickets_completed, last_updated)
-        VALUES (%s, 1, CURRENT_TIMESTAMP)
-        ON CONFLICT (user_id) DO UPDATE SET 
-            tickets_completed = mm_stats.tickets_completed + 1,
-            last_updated = CURRENT_TIMESTAMP
-    """, (user_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def get_mm_stats(user_id):
-    """Get MM stats for a user"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT * FROM mm_stats WHERE user_id = %s", (user_id,))
-    result = cur.fetchone()
-    cur.close()
-    conn.close()
-    return result if result else {'user_id': user_id, 'tickets_completed': 0}
-
-def get_mm_leaderboard(limit=10):
-    """Get top MM users"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("""
-        SELECT user_id, tickets_completed 
-        FROM mm_stats 
-        ORDER BY tickets_completed DESC 
-        LIMIT %s
-    """, (limit,))
-    results = cur.fetchall()
-    cur.close()
-    conn.close()
-    return results
-
-def get_mm_rank(user_id):
-    """Get user's rank among all MMs"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("""
-        SELECT COUNT(*) + 1 as rank
-        FROM mm_stats
-        WHERE tickets_completed > (
-            SELECT COALESCE(tickets_completed, 0)
-            FROM mm_stats
-            WHERE user_id = %s
-        )
-    """, (user_id,))
-    result = cur.fetchone()
-    cur.close()
-    conn.close()
-    return result['rank'] if result else None
-
-def can_access_tier(user_roles, ticket_tier):
-    """Check if user can access this ticket tier"""
-    mm_role_ids = get_all_mm_roles()
-    user_role_ids = [role.id for role in user_roles]
-    
-    ticket_level = MM_TIERS[ticket_tier]['level']
-    
-    for tier_key, role_id in mm_role_ids.items():
-        if role_id in user_role_ids:
-            user_level = MM_TIERS[tier_key]['level']
-            # 250+ can see everything, others only their level and below
-            if tier_key == '250_plus' or user_level >= ticket_level:
-                return True
-    
-    return False
-
-def is_mm_or_staff(user):
-    """Check if user is MM or staff"""
-    if user.guild_permissions.administrator:
-        return True
-    
-    mm_role_ids = get_all_mm_roles()
-    staff_role_id = get_config('staff_role')
-    
-    user_role_ids = [role.id for role in user.roles]
-    
-    if staff_role_id and int(staff_role_id) in user_role_ids:
-        return True
-    
-    for role_id in mm_role_ids.values():
-        if role_id in user_role_ids:
-            return True
-    
-    return False
-
-# This is Part 3 - Modals (Pop-up forms for creating tickets)
+      # This is Part 3 - Modals (Pop-up forms for creating tickets)
 
 class MMTradeModal(Modal, title='Middleman Trade Details'):
     def __init__(self, tier):
@@ -298,14 +188,7 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
             required=True,
             max_length=500
         )
-
-        self.both_join = TextInput(
-            label='Can both users join Discord calls?',
-            placeholder='YES or NO',
-            required=True,
-            max_length=10
-        )
-
+        
         self.tip = TextInput(
             label='Will you tip the middleman?',
             placeholder='Optional - helps support our team!',
@@ -316,7 +199,6 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
         self.add_item(self.trader)
         self.add_item(self.giving)
         self.add_item(self.receiving)
-        self.add_item(self.both_join)
         self.add_item(self.tip)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -330,7 +212,6 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
                 self.trader.value,
                 self.giving.value,
                 self.receiving.value,
-                self.both_join.value,
                 self.tip.value if self.tip.value else 'None'
             )
             await interaction.followup.send('✅ Your middleman ticket has been created! Check the new channel.', ephemeral=True)
@@ -350,7 +231,31 @@ class SupportTicketModal(Modal, title='Open Support Ticket'):
         )
 
         self.details = TextInput(
-            label='Additional Details',# This is Part 4 - Views, Buttons, and Dropdowns
+            label='Additional Details',
+            placeholder='Provide any extra information that might help us...',
+            style=discord.TextStyle.paragraph,
+            required=False,
+            max_length=2000
+        )
+
+        self.add_item(self.reason)
+        self.add_item(self.details)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            await create_support_ticket(
+                interaction.guild, 
+                interaction.user,
+                self.reason.value,
+                self.details.value if self.details.value else 'None provided'
+            )
+            await interaction.followup.send('✅ Support ticket created! Check the new channel.', ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f'❌ Error creating ticket: {str(e)}', ephemeral=True)
+
+      # This is Part 4 - Views, Buttons, and Dropdowns
 
 class MMSetupView(View):
     """The persistent view for MM setup panel"""
@@ -382,25 +287,25 @@ class TierSelect(Select):
         options = [
             discord.SelectOption(
                 label='$1-$50 Middleman',
-                description='Small trades and items',
+                description='Trades up to 50$ of value',
                 value='1_50',
                 emoji='🟢'
             ),
             discord.SelectOption(
                 label='$50-$100 Middleman',
-                description='Medium value trades',
+                description='Trades Between 50-100$ of value',
                 value='50_100',
                 emoji='🔵'
             ),
             discord.SelectOption(
                 label='$100-$250 Middleman',
-                description='High value trades',
+                description='Trades Between 100-250$ of value',
                 value='100_250',
                 emoji='🟣'
             ),
             discord.SelectOption(
                 label='$250+ Middleman',
-                description='Premium and exclusive trades',
+                description='250$ Trades And Above',
                 value='250_plus',
                 emoji='💎'
             )
@@ -473,28 +378,6 @@ class SupportTicketView(View):
     async def close_button(self, interaction: discord.Interaction, button: Button):
         await interaction.response.defer()
         await close_ticket(interaction.channel, interaction.user)
-            placeholder='Provide any extra information that might help us...',
-            style=discord.TextStyle.paragraph,
-            required=False,
-            max_length=2000
-        )
-
-        self.add_item(self.reason)
-        self.add_item(self.details)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        
-        try:
-            await create_support_ticket(
-                interaction.guild, 
-                interaction.user,
-                self.reason.value,
-                self.details.value if self.details.value else 'None provided'
-            )
-            await interaction.followup.send('✅ Support ticket created! Check the new channel.', ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f'❌ Error creating ticket: {str(e)}', ephemeral=True)
 
       # This is Part 5 - Coinflip System (KEPT AS-IS per your request)
 
@@ -1226,7 +1109,7 @@ async def help_cmd(ctx):
     await ctx.reply(embed=embed)
 
 # Helper Functions
-async def create_mm_ticket(guild, user, tier, trader, giving, receiving, both_join, tip):
+async def create_mm_ticket(guild, user, tier, trader, giving, receiving, tip):
     """Create MM ticket"""
     try:
         category = discord.utils.get(guild.categories, name='MM Tickets')
@@ -1262,7 +1145,7 @@ async def create_mm_ticket(guild, user, tier, trader, giving, receiving, both_jo
             overwrites=overwrites
         )
         
-        create_ticket_db(ticket_channel.id, user.id, 'mm', tier=tier, trader=trader, giving=giving, receiving=receiving, both_join=both_join, tip=tip)
+        create_ticket_db(ticket_channel.id, user.id, 'mm', tier=tier, trader=trader, giving=giving, receiving=receiving, tip=tip)
          ticket_channel.send(f'{mm_team_role.mention} {user.mention}')
         
           # Ping MM team role (configurable)
@@ -1281,7 +1164,6 @@ async def create_mm_ticket(guild, user, tier, trader, giving, receiving, both_jo
         embed.add_field(name="👥 Trading With", value=trader, inline=False)
         embed.add_field(name="📤 You're Giving", value=giving, inline=True)
         embed.add_field(name="📥 You're Receiving", value=receiving, inline=True)
-        embed.add_field(name="🔗 Both Can Join Calls?", value=both_join, inline=True)
         embed.add_field(name="💰 Tip", value=tip if tip else "None", inline=True)
         
         embed.set_footer(text=f'Ticket created by {user.name}', icon_url=user.display_avatar.url)
