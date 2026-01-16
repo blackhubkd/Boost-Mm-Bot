@@ -1146,9 +1146,8 @@ async def create_mm_ticket(guild, user, tier, trader, giving, receiving, tip):
         )
         
         create_ticket_db(ticket_channel.id, user.id, 'mm', tier=tier, trader=trader, giving=giving, receiving=receiving, tip=tip)
-         ticket_channel.send(f'{mm_team_role.mention} {user.mention}')
         
-          # Ping MM team role (configurable)
+        # Ping MM team role (configurable)
         if mm_team_role_id and mm_team_role_id != '0':
             mm_team_role = guild.get_role(int(mm_team_role_id))
             if mm_team_role:
@@ -1169,10 +1168,12 @@ async def create_mm_ticket(guild, user, tier, trader, giving, receiving, tip):
         embed.set_footer(text=f'Ticket created by {user.name}', icon_url=user.display_avatar.url)
         embed.timestamp = datetime.utcnow()
         
-        await ticket_channel.send(embed=embed, view=MMTicketView()
+        await ticket_channel.send(embed=embed, view=MMTicketView())
+        
     except Exception as e:
         print(f'[ERROR] MM Ticket creation failed: {e}')
         raise
+        
 
 async def create_support_ticket(guild, user, reason, details):
     """Create support ticket"""
