@@ -611,7 +611,7 @@ class CoinflipView(View):
 async def on_ready():
     print(f'✅ Bot online as {bot.user}')
     print(f'📊 Serving {len(bot.guilds)} servers')
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='trades'))
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='Official Boost Mm Bot'))
     
     # Register persistent views
     bot.add_view(TierSelectView())
