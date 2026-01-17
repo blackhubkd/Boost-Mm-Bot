@@ -271,31 +271,6 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
         except Exception as e:
             await interaction.followup.send(f'❌ Error creating ticket: {str(e)}', ephemeral=True)
 
-# REPLACE THE on_submit METHOD WITH THIS:
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        
-        try:
-            # NEW: Get the channel object returned from create_ticket_with_details
-            ticket_channel = await create_ticket_with_details(
-                interaction.guild, 
-                interaction.user, 
-                self.tier,
-                self.trader.value,
-                self.giving.value,
-                self.receiving.value,
-                self.tip.value if self.tip.value else 'None'
-            )
-            
-            # NEW: Send clickable link to the ticket
-            await interaction.followup.send(
-                f'✅ Middleman ticket created! {ticket_channel.mention}',
-                ephemeral=True
-            )
-        except Exception as e:
-            await interaction.followup.send(f'❌ Error creating ticket: {str(e)}', ephemeral=True)
-
 # Support Ticket Modal
 class SupportTicketModal(Modal, title='Open Support Ticket'):
     def __init__(self):
