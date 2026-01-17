@@ -397,12 +397,18 @@ async def on_ready():
 @bot.command(name='mmsetup')
 @commands.has_permissions(administrator=True)
 async def mmsetup(ctx):
-    embed = discord.Embed(
-        title='⚖️ Middleman Services',
-        description='🟢 $1-$50\n🔵 $50-$100\n🟣 $100-$250\n💎 $250+',
-        color=MM_COLOR
+    embed = discord.Embed(color=MM_COLOR)
+    embed.set_author(name='⚖️ Middleman Services', icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
+    embed.description = (
+        '**Safe & Secure Trading**\n'
+        'We protect both parties during the transaction\n\n'
+        '🟢 • **$1 - $50** • \n'
+        '🔵 • **$50 - $100** • \n'
+        '🟣 • **$100 - $250** • \n'
+        '💎 • **$250+** • \n\n'
+        '✅ Verified Middlemen\n'
+        '🔒 100% Secure'
     )
-    embed.set_footer(text='Click below to open a ticket')
     await ctx.send(embed=embed, view=MMSetupView())
     try:
         await ctx.message.delete()
@@ -412,12 +418,18 @@ async def mmsetup(ctx):
 @bot.command(name='supportsetup')
 @commands.has_permissions(administrator=True)
 async def supportsetup(ctx):
-    embed = discord.Embed(
-        title='🎫 Support Center',
-        description='Need help? Our staff team is here to assist you.',
-        color=MM_COLOR
+    embed = discord.Embed(color=MM_COLOR)
+    embed.set_author(name='🎫 Support Center', icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
+    embed.description = (
+        '**Need Assistance?**\n'
+        'Our staff team is ready to help you\n\n'
+        '📌 General Questions\n'
+        '⚠️ Report Issues\n'
+        '🎉 Claim a prize\n'
+        '🤝 Partnership\n'
+        '💬 Get Help\n\n'
+        '**Average Response:** Under 5 minutes'
     )
-    embed.set_footer(text='Click below to open a support ticket')
     await ctx.send(embed=embed, view=SupportSetupView())
     try:
         await ctx.message.delete()
