@@ -651,29 +651,27 @@ class MMTicketView(View):
     
     @discord.ui.button(label='✅ Claim Ticket', style=discord.ButtonStyle.success, custom_id='claim_mm_ticket')
     async def claim_button(self, interaction: discord.Interaction, button: Button):
-        # Get ticket tier
-        ticket_data = active_tickets.get(interaction.channel.id)
+        # Get ticket from DATABASE (not active_tickets dictionary)
+        ticket_data = get_ticket(interaction.channel.id)
         if not ticket_data:
             return await interaction.response.send_message('❌ Ticket data not found!', ephemeral=True)
         
-        ticket_tier = ticket_data.get('tier')
+        ticket_tier = ticket_data.get('tier') or ticket_data['tier']
         
-        # Check if user can claim this tier
         if not can_see_tier(interaction.user.roles, ticket_tier) and not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message('❌ You do not have permission to claim this ticket tier!', ephemeral=True)
         
-        # Check if already claimed
-        if interaction.channel.id in claimed_tickets:
-            claimer_id = claimed_tickets[interaction.channel.id]
-            claimer = interaction.guild.get_member(claimer_id)
+        # Check if already claimed (from DATABASE)
+        if ticket_data.get('claimed_by'):
+            claimer = interaction.guild.get_member(ticket_data['claimed_by'])
             return await interaction.response.send_message(f'❌ This ticket is already claimed by {claimer.mention if claimer else "someone"}!', ephemeral=True)
         
-        claimed_tickets[interaction.channel.id] = interaction.user.id
+        # CLAIM IN DATABASE (not claimed_tickets dictionary)
+        claim_ticket_db(interaction.channel.id, interaction.user.id)
         
-        ticket_creator_id = ticket_data.get('user_id')
+        ticket_creator_id = ticket_data['user_id']
         ticket_creator = interaction.guild.get_member(ticket_creator_id) if ticket_creator_id else None
         
-        # Update permissions - only claimer and creator can talk
         await interaction.channel.set_permissions(
             interaction.user,
             view_channel=True,
@@ -693,11 +691,9 @@ class MMTicketView(View):
             description=f'✅ Ticket claimed by {interaction.user.mention}\n\n🔒 **Only the claimer and ticket creator are allowed to talk.**',
             color=0x57F287
         )
-        embed.timestamp = datetime.utcnow()
         
         await interaction.response.send_message(embed=embed)
         await interaction.channel.edit(name=f"{interaction.channel.name}-claimed")
-        save_data()
     
     @discord.ui.button(label='🔒 Close Ticket', style=discord.ButtonStyle.danger, custom_id='close_mm_ticket')
     async def close_button(self, interaction: discord.Interaction, button: Button):
@@ -829,6 +825,60 @@ async def claim(ctx):
     await ctx.channel.edit(name=f"{ctx.channel.name}-claimed")
     save_data()
 
+# unclaim
+@bot.command(name='unclaim')
+async def unclaim_command(ctx):
+    """Unclaim a ticket"""
+    if not ctx.channel.name.startswith('ticket-'):
+        return await ctx.reply('❌ This command can only be used in ticket channels!')
+    
+    # GET FROM DATABASE (not claimed_tickets dictionary)
+    ticket_data = get_ticket(ctx.channel.id)
+    if not ticket_data:
+        return await ctx.reply('❌ Ticket data not found!')
+    
+    if not ticket_data.get('claimed_by'):
+        return await ctx.reply('❌ This ticket is not claimed!')
+    
+    claimer_id = ticket_data['claimed_by']
+    
+    if ctx.author.id != claimer_id and not ctx.author.guild_permissions.administrator:
+        return await ctx.reply('❌ Only the ticket claimer or administrators can unclaim this ticket!')
+    
+    ticket_tier = ticket_data.get('tier')
+    ticket_creator_id = ticket_data['user_id']
+    ticket_creator = ctx.guild.get_member(ticket_creator_id) if ticket_creator_id else None
+    
+    # UNCLAIM IN DATABASE (not claimed_tickets dictionary)
+    unclaim_ticket_db(ctx.channel.id)
+    
+    # Restore permissions
+    if ticket_tier:
+        ticket_level = MM_TIERS[ticket_tier]['level']
+        
+        for tier_key, role_id in MM_ROLE_IDS.items():
+            role = ctx.guild.get_role(role_id)
+            if role:
+                tier_lvl = MM_TIERS[tier_key]['level']
+                if tier_key == 'og' or tier_lvl >= ticket_level:
+                    await ctx.channel.set_permissions(
+                        role,
+                        view_channel=True,
+                        send_messages=True,
+                        read_message_history=True,
+                        manage_messages=True
+                    )
+    
+    new_name = ctx.channel.name.replace('-claimed', '')
+    await ctx.channel.edit(name=new_name)
+    
+    embed = discord.Embed(
+        description=f'✅ Ticket unclaimed by {ctx.author.mention}\n\n🔓 **All eligible middlemen can now claim this ticket again.**',
+        color=MM_COLOR
+    )
+    
+    await ctx.reply(embed=embed)
+
 # Close Command
 @bot.command(name='close')
 async def close_command(ctx):
@@ -924,16 +974,15 @@ async def remove_user(ctx, member: discord.Member = None):
 @bot.command(name='proof')
 async def proof_command(ctx):
     """Send MM proof to proof channel"""
-    PROOF_CHANNEL_ID = 1458163922262560840
-
-# Permission check
+    
     if not is_mm_or_admin(ctx.author, ctx.guild):
         return await ctx.reply('❌ You do not have permission to use this command!')
     
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in a ticket.')
 
-    ticket = active_tickets.get(ctx.channel.id)
+    # GET FROM DATABASE (not active_tickets dictionary)
+    ticket = get_ticket(ctx.channel.id)
     if not ticket:
         return await ctx.reply('❌ No ticket data found.')
 
@@ -954,7 +1003,8 @@ async def proof_command(ctx):
     )
 
     embed.add_field(name='Middleman', value=ctx.author.mention, inline=False)
-    embed.add_field(name='Tier', value=MM_TIERS[tier]['name'], inline=False)
+    if tier and tier in MM_TIERS:
+        embed.add_field(name='Tier', value=MM_TIERS[tier]['name'], inline=False)
     embed.add_field(name='Requester', value=requester.mention if requester else 'Unknown', inline=False)
     embed.add_field(name='Trader', value=trader, inline=False)
     embed.add_field(name='Gave', value=giving, inline=False)
@@ -966,12 +1016,8 @@ async def proof_command(ctx):
 
     await proof_channel.send(embed=embed)
     
-    # NEW: Track MM stats
-    user_id_str = str(ctx.author.id)
-    if user_id_str not in mm_stats:
-        mm_stats[user_id_str] = 0
-    mm_stats[user_id_str] += 1
-    save_data()
+    # INCREMENT STATS IN DATABASE (not mm_stats dictionary)
+    increment_mm_stats(ctx.author.id)
     
     await ctx.reply('✅ Proof sent successfully!')
 
@@ -1020,14 +1066,16 @@ async def help_command(ctx):
     
     await ctx.reply(embed=embed)
 
-# MM Stats Command
+# mm stats cmd
 @bot.command(name='mmstats')
 async def mmstats_command(ctx, member: discord.Member = None):
     """View MM statistics for a user"""
     target = member if member else ctx.author
-    user_id_str = str(target.id)
     
-    tickets_completed = mm_stats.get(user_id_str, 0)
+    # GET FROM DATABASE (not mm_stats dictionary)
+    stats = get_mm_stats_db(target.id)
+    
+    tickets_completed = stats.get('tickets_completed', 0)
     
     embed = discord.Embed(
         title=f'📊 Middleman Statistics',
@@ -1041,14 +1089,14 @@ async def mmstats_command(ctx, member: discord.Member = None):
         inline=False
     )
     
-    # Calculate rank
-    sorted_stats = sorted(mm_stats.items(), key=lambda x: x[1], reverse=True)
-    rank = next((i + 1 for i, (uid, _) in enumerate(sorted_stats) if uid == user_id_str), None)
+    # Calculate rank from database
+    all_stats = get_mm_leaderboard_db(1000)  # Get all to calculate rank
+    rank = next((i + 1 for i, s in enumerate(all_stats) if s['user_id'] == target.id), None)
     
     if rank:
         embed.add_field(
             name='🏆 Rank',
-            value=f'#{rank} out of {len(mm_stats)} middlemen',
+            value=f'#{rank} out of {len(all_stats)} middlemen',
             inline=False
         )
     
@@ -1056,15 +1104,16 @@ async def mmstats_command(ctx, member: discord.Member = None):
     
     await ctx.reply(embed=embed)
 
-# MM Leaderboard Command
+# mm lb cmd
 @bot.command(name='mmleaderboard')
 async def mmleaderboard_command(ctx):
     """View top middlemen leaderboard"""
-    if not mm_stats:
-        return await ctx.reply('❌ No middleman statistics available yet!')
     
-    # Sort by tickets completed
-    sorted_stats = sorted(mm_stats.items(), key=lambda x: x[1], reverse=True)
+    # GET FROM DATABASE (not mm_stats dictionary)
+    sorted_stats = get_mm_leaderboard_db(10)
+    
+    if not sorted_stats:
+        return await ctx.reply('❌ No middleman statistics available yet!')
     
     embed = discord.Embed(
         title='🏆 Middleman Leaderboard',
@@ -1072,78 +1121,22 @@ async def mmleaderboard_command(ctx):
         color=MM_COLOR
     )
     
-    # Show top 10
     leaderboard_text = []
-    for i, (user_id, tickets) in enumerate(sorted_stats[:10], 1):
-        member = ctx.guild.get_member(int(user_id))
+    for i, entry in enumerate(sorted_stats, 1):
+        member = ctx.guild.get_member(entry['user_id'])
         if member:
             medal = '🥇' if i == 1 else '🥈' if i == 2 else '🥉' if i == 3 else f'{i}.'
-            leaderboard_text.append(f'{medal} {member.mention} has completed **{tickets}** middleman tickets')
+            leaderboard_text.append(f'{medal} {member.mention} - **{entry["tickets_completed"]}** tickets')
     
     if leaderboard_text:
         embed.description = '\n'.join(leaderboard_text)
     else:
         embed.description = 'No data available'
     
-    embed.set_footer(text=f'Total Middlemen: {len(mm_stats)}')
+    all_stats = get_mm_leaderboard_db(1000)
+    embed.set_footer(text=f'Total Middlemen: {len(all_stats)}')
     
     await ctx.reply(embed=embed)
-
-# Unclaim Command
-@bot.command(name='unclaim')
-async def unclaim_command(ctx):
-    """Unclaim a ticket"""
-    if not ctx.channel.name.startswith('ticket-'):
-        return await ctx.reply('❌ This command can only be used in ticket channels!')
-    
-    if ctx.channel.id not in claimed_tickets:
-        return await ctx.reply('❌ This ticket is not claimed!')
-    
-    claimer_id = claimed_tickets[ctx.channel.id]
-    
-    # Check if user is the claimer or has admin perms
-    if ctx.author.id != claimer_id and not ctx.author.guild_permissions.administrator:
-        return await ctx.reply('❌ Only the ticket claimer or administrators can unclaim this ticket!')
-    
-    # Get ticket data to restore proper permissions
-    ticket_data = active_tickets.get(ctx.channel.id)
-    if not ticket_data:
-        return await ctx.reply('❌ Ticket data not found!')
-    
-    ticket_tier = ticket_data.get('tier')
-    ticket_creator_id = ticket_data.get('user_id')
-    ticket_creator = ctx.guild.get_member(ticket_creator_id) if ticket_creator_id else None
-    
-    # Remove claim
-    del claimed_tickets[ctx.channel.id]
-    
-    # Restore permissions for all MM roles that can see this tier
-    ticket_level = MM_TIERS[ticket_tier]['level']
-    
-    for tier_key, role_id in MM_ROLE_IDS.items():
-        role = ctx.guild.get_role(role_id)
-        if role:
-            tier_level = MM_TIERS[tier_key]['level']
-            if tier_key == 'og' or tier_level >= ticket_level:
-                await ctx.channel.set_permissions(
-                    role,
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True,
-                    manage_messages=True
-                )
-    
-    # Reset channel name
-    new_name = ctx.channel.name.replace('-claimed', '')
-    await ctx.channel.edit(name=new_name)
-    
-    embed = discord.Embed(
-        description=f'✅ Ticket unclaimed by {ctx.author.mention}\n\n🔓 **All eligible middlemen can now claim this ticket again.**',
-        color=MM_COLOR
-    )
-    
-    await ctx.reply(embed=embed)
-    save_data()
 
 # Simple Coinflip Command
 @bot.command(name='coinflip')
@@ -1436,16 +1429,11 @@ async def close_ticket(channel, user):
 
     await channel.send(embed=embed)
 
-    if channel.id in active_tickets:
-        del active_tickets[channel.id]
-    if channel.id in claimed_tickets:
-        del claimed_tickets[channel.id]
-    
-    save_data()
+    # DELETE FROM DATABASE (not dictionaries)
+    delete_ticket_db(channel.id)
 
     await asyncio.sleep(5)
     await channel.delete()
-
         
 # Run Bot
 if __name__ == '__main__':
