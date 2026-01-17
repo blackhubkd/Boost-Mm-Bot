@@ -2,13 +2,16 @@ import discord
 from discord.ext import commands
 from discord.ui import Button, View, Select, Modal, TextInput
 import os
-import json
-import random
 import secrets
 from datetime import datetime
 import asyncio
 from flask import Flask
 from threading import Thread
+import psycopg2  
+from psycopg2.extras import RealDictCursor  
+from dotenv import load_dotenv  
+
+load_dotenv()  # NEW: Load .env file
 
 # Keep bot alive
 app = Flask('')
@@ -26,6 +29,7 @@ def keep_alive():
 
 # Bot Configuration
 PREFIX = '$'
+DATABASE_URL = os.getenv('DATABASE_URL')
 TICKET_CATEGORY = 'MM Tickets'
 PROOF_CHANNEL_ID = 1458163922262560840  # CHANGE THIS TO YOUR PROOF CHANNEL ID
 
@@ -34,11 +38,6 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
-
-# Storage
-active_tickets = {}
-claimed_tickets = {}
-mm_stats = {}
 
 # Color
 MM_COLOR = 0xFEE75C
@@ -82,28 +81,139 @@ MM_ROLE_IDS = {
 SUPPORT_CATEGORY = 'Support Tickets'
 STAFF_ROLE_ID = 1458152494923251833
 
-def save_data():
-    data = {
-        'active_tickets': active_tickets,
-        'claimed_tickets': claimed_tickets,
-        'mm_stats': mm_stats
-    }
-    with open('bot_data.json', 'w') as f:
-        json.dump(data, f, indent=4)
 
-def load_data():
-    global active_tickets, claimed_tickets
+def init_database():
+    """Creates database tables when bot starts"""
     try:
-        with open('bot_data.json', 'r') as f:
-            data = json.load(f)
-            active_tickets.update(data.get('active_tickets', {}))
-            claimed_tickets.update(data.get('claimed_tickets', {}))
-            mm_stats.update(data.get('mm_stats', {}))
-        print('✅ Data loaded successfully!')
-    except FileNotFoundError:
-        print('⚠️ No saved data found, starting fresh.')
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        
+        # Create tickets table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tickets (
+                channel_id BIGINT PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                ticket_type VARCHAR(50) NOT NULL,
+                tier VARCHAR(50),
+                trader TEXT,
+                giving TEXT,
+                receiving TEXT,
+                tip TEXT,
+                reason TEXT,
+                details TEXT,
+                claimed_by BIGINT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create mm_stats table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS mm_stats (
+                user_id BIGINT PRIMARY KEY,
+                tickets_completed INTEGER DEFAULT 0,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("✅ Database tables ready")
     except Exception as e:
-        print(f'❌ Error loading data: {e}')
+        print(f"❌ Database error: {e}")
+
+def get_db():
+    """Get database connection"""
+    return psycopg2.connect(DATABASE_URL)
+
+def save_ticket(channel_id, user_id, ticket_type, **kwargs):
+    """Save a ticket to database"""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO tickets (channel_id, user_id, ticket_type, tier, trader, giving, receiving, tip, reason, details)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        channel_id, user_id, ticket_type,
+        kwargs.get('tier'), kwargs.get('trader'), kwargs.get('giving'),
+        kwargs.get('receiving'), kwargs.get('tip'),
+        kwargs.get('reason'), kwargs.get('details')
+    ))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_ticket(channel_id):
+    """Get ticket data from database"""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM tickets WHERE channel_id = %s", (channel_id,))
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    return result
+
+def claim_ticket_db(channel_id, user_id):
+    """Mark ticket as claimed"""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE tickets SET claimed_by = %s WHERE channel_id = %s", (user_id, channel_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def unclaim_ticket_db(channel_id):
+    """Remove claim from ticket"""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE tickets SET claimed_by = NULL WHERE channel_id = %s", (channel_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def delete_ticket_db(channel_id):
+    """Delete ticket from database"""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM tickets WHERE channel_id = %s", (channel_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def increment_mm_stats(user_id):
+    """Add 1 to MM's completed tickets"""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO mm_stats (user_id, tickets_completed, last_updated)
+        VALUES (%s, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id) DO UPDATE SET 
+            tickets_completed = mm_stats.tickets_completed + 1,
+            last_updated = CURRENT_TIMESTAMP
+    """, (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_mm_stats_db(user_id):
+    """Get MM statistics from database"""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM mm_stats WHERE user_id = %s", (user_id,))
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    return result if result else {'user_id': user_id, 'tickets_completed': 0}
+
+def get_mm_leaderboard_db(limit=10):
+    """Get top MMs from database"""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT user_id, tickets_completed FROM mm_stats ORDER BY tickets_completed DESC LIMIT %s", (limit,))
+    results = cur.fetchall()
+    cur.close()
+    conn.close()
+    return results
 
 def can_see_tier(user_roles, ticket_tier):
     """Check if user with their roles can see a ticket of given tier"""
@@ -142,45 +252,8 @@ def is_mm_or_admin(user, guild):
 
 # MM Trade Details Modal
 class MMTradeModal(Modal, title='Middleman Trade Details'):
-    def __init__(self, tier):
-        super().__init__()
-        self.tier = tier
-
-        self.trader = TextInput(
-            label='Who are you trading with?',
-            placeholder='@user or ID',
-            required=True,
-            max_length=100
-        )
-
-        self.giving = TextInput(
-            label='What are you giving?',
-            placeholder='Example: 200M',
-            style=discord.TextStyle.paragraph,
-            required=True,
-            max_length=500
-        )
-
-        self.receiving = TextInput(
-            label='What is the other trader giving?',
-            placeholder='Example: 500 Robux',
-            style=discord.TextStyle.paragraph,
-            required=True,
-            max_length=500
-        )
-
-        self.tip = TextInput(
-            label='Will you tip the MM?',
-            placeholder='Optional',
-            required=False,
-            max_length=200
-        )
-
-        self.add_item(self.trader)
-        self.add_item(self.giving)
-        self.add_item(self.receiving)
-        self.add_item(self.tip)
-
+    # ... (keep everything the same until on_submit)
+    
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
@@ -194,7 +267,32 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
                 self.receiving.value,
                 self.tip.value if self.tip.value else 'None'
             )
-            await interaction.followup.send('✅ Middleman ticket created! Check the ticket channel.', ephemeral=True)
+            await interaction.followup.send('✅ Middleman ticket created! Check the ticket channel.', ephemeral=True)  # <-- CHANGE THIS
+        except Exception as e:
+            await interaction.followup.send(f'❌ Error creating ticket: {str(e)}', ephemeral=True)
+
+# REPLACE THE on_submit METHOD WITH THIS:
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # NEW: Get the channel object returned from create_ticket_with_details
+            ticket_channel = await create_ticket_with_details(
+                interaction.guild, 
+                interaction.user, 
+                self.tier,
+                self.trader.value,
+                self.giving.value,
+                self.receiving.value,
+                self.tip.value if self.tip.value else 'None'
+            )
+            
+            # NEW: Send clickable link to the ticket
+            await interaction.followup.send(
+                f'✅ Middleman ticket created! {ticket_channel.mention}',
+                ephemeral=True
+            )
         except Exception as e:
             await interaction.followup.send(f'❌ Error creating ticket: {str(e)}', ephemeral=True)
 
@@ -619,7 +717,7 @@ async def on_ready():
     bot.add_view(MMSetupView())
     bot.add_view(SupportSetupView())
     
-    load_data()
+    init_database()  
 
 # Setup Command
 @bot.command(name='mmsetup')
@@ -1157,16 +1255,14 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
     try:
         category = discord.utils.get(guild.categories, name=TICKET_CATEGORY)
         if not category:
-            category = await guild.create_category(TICKET_CATEGORY)
+            category = await guild.create_category(TICKET_CATEGORY, position=len(guild.categories))
         
-        # Base overwrites
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             user: discord.PermissionOverwrite(
                 view_channel=True, 
                 send_messages=True, 
-                read_message_history=True,
-                mention_everyone=True
+                read_message_history=True
             ),
             guild.me: discord.PermissionOverwrite(
                 view_channel=True,
@@ -1176,21 +1272,23 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
             )
         }
         
-        # Add ONLY the roles that can see this tier
         ticket_level = MM_TIERS[tier]['level']
+        
+        # Collect roles to ping
+        roles_to_ping = []
         
         for tier_key, role_id in MM_ROLE_IDS.items():
             role = guild.get_role(role_id)
             if role:
-                tier_level = MM_TIERS[tier_key]['level']
-                # OG sees everything, others only see their level or below
-                if tier_key == 'og' or tier_level >= ticket_level:
+                tier_lvl = MM_TIERS[tier_key]['level']
+                if tier_key == 'og' or tier_lvl >= ticket_level:
                     overwrites[role] = discord.PermissionOverwrite(
                         view_channel=True,
                         send_messages=True,
                         read_message_history=True,
                         manage_messages=True
                     )
+                    roles_to_ping.append(role)
         
         ticket_channel = await guild.create_text_channel(
             name=f'ticket-{user.name}-mm',
@@ -1198,72 +1296,46 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
             overwrites=overwrites
         )
         
-        active_tickets[ticket_channel.id] = {
-            'user_id': user.id,
-            'created_at': datetime.utcnow().isoformat(),
-            'tier': tier,
-            'trader': trader,
-            'giving': giving,
-            'receiving': receiving,
-            'tip': tip
-        }
+        # SAVE TO DATABASE (instead of active_tickets dictionary)
+        save_ticket(
+            ticket_channel.id,
+            user.id,
+            'mm',
+            tier=tier,
+            trader=trader,
+            giving=giving,
+            receiving=receiving,
+            tip=tip
+        )
         
-        # GHOST PING: Ping tier role and user, then delete
-        tier_role_id = MM_ROLE_IDS.get(tier)
-        tier_role = guild.get_role(tier_role_id) if tier_role_id else None
+        # PING ROLES + USER (NO GHOST PING - just normal ping)
+        if roles_to_ping:
+            ping_mentions = ' '.join([role.mention for role in roles_to_ping]) + f' {user.mention}'
+            await ticket_channel.send(ping_mentions)
+        else:
+            await ticket_channel.send(user.mention)
         
-        if tier_role:
-            ping_msg = await ticket_channel.send(f"{tier_role.mention} {user.mention}")
-            await ping_msg.delete()
-        
-        # Combined embed
+        # Send ticket embed
         embed = discord.Embed(
             title=f"{MM_TIERS[tier]['emoji']} {MM_TIERS[tier]['name']}",
-            description=f"Welcome {user.mention}!\n\nOur team will be with you shortly. Please wait for a middleman to claim this ticket.",
+            description=f"Welcome {user.mention}!\n\nOur team will be with you shortly.",
             color=MM_COLOR
         )
         
-        embed.add_field(
-            name="📊 Trade Details",
-            value=f"**Range:** {MM_TIERS[tier]['range']}\n**Status:** 🟡 Waiting for Middleman",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="👥 Trading With",
-            value=trader,
-            inline=False
-        )
-        
-        embed.add_field(
-            name="📤 You're Giving",
-            value=giving,
-            inline=True
-        )
-        
-        embed.add_field(
-            name="📥 You're Receiving",
-            value=receiving,
-            inline=True
-        )
-        
-        embed.add_field(
-            name="💰 Tip",
-            value=tip if tip else "None",
-            inline=True
-        )
-        
-        embed.set_footer(
-            text=f'Ticket created by {user.name}',
-            icon_url=user.display_avatar.url
-        )
+        embed.add_field(name="💥 Trading With", value=trader, inline=False)
+        embed.add_field(name="📤 You're Giving", value=giving, inline=True)
+        embed.add_field(name="📥 You're Receiving", value=receiving, inline=True)
+        embed.add_field(name="💰 Tip", value=tip if tip else "None", inline=True)
         
         await ticket_channel.send(embed=embed, view=MMTicketView())
-        save_data()
+        
+        # RETURN THE CHANNEL (so we can send link to user)
+        return ticket_channel
         
     except Exception as e:
         print(f'[ERROR] MM Ticket creation failed: {e}')
         raise
+        
 
 async def create_support_ticket(guild, user, reason, details):
     """Create a support ticket with staff ping and ghost ping"""
