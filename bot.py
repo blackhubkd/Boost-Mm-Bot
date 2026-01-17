@@ -252,13 +252,51 @@ def is_mm_or_admin(user, guild):
 
 # MM Trade Details Modal
 class MMTradeModal(Modal, title='Middleman Trade Details'):
-    # ... (keep everything the same until on_submit)
-    
+    def __init__(self, tier):
+        super().__init__()
+        self.tier = tier
+
+        self.trader = TextInput(
+            label='Who are you trading with?',
+            placeholder='Enter their user or id',
+            required=True,
+            max_length=100
+        )
+
+        self.giving = TextInput(
+            label="What are you giving?",
+            placeholder='Example: 500 rbx ',
+            style=discord.TextStyle.paragraph,
+            required=True,
+            max_length=500
+        )
+
+        self.receiving = TextInput(
+            label="What are you receiving?",
+            placeholder='Example: $50 PayPal',
+            style=discord.TextStyle.paragraph,
+            required=True,
+            max_length=500
+        )
+
+        self.tip = TextInput(
+            label='Tip Amount (Optional)',
+            placeholder=' Enter the tip if ur willing to tip the middleman',
+            required=False,
+            max_length=100
+        )
+
+        self.add_item(self.trader)
+        self.add_item(self.giving)
+        self.add_item(self.receiving)
+        self.add_item(self.tip)
+
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
         try:
-            await create_ticket_with_details(
+            # Get the channel object returned from create_ticket_with_details
+            ticket_channel = await create_ticket_with_details(
                 interaction.guild, 
                 interaction.user, 
                 self.tier,
@@ -267,7 +305,12 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
                 self.receiving.value,
                 self.tip.value if self.tip.value else 'None'
             )
-            await interaction.followup.send('✅ Middleman ticket created! Check the ticket channel.', ephemeral=True)  # <-- CHANGE THIS
+            
+            # Send clickable link to the ticket
+            await interaction.followup.send(
+                f'✅ Middleman ticket created! {ticket_channel.mention}',
+                ephemeral=True
+            )
         except Exception as e:
             await interaction.followup.send(f'❌ Error creating ticket: {str(e)}', ephemeral=True)
 
