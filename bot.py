@@ -27,7 +27,7 @@ def keep_alive():
 # Bot Configuration
 PREFIX = '$'
 TICKET_CATEGORY = 'MM Tickets'
-PROOF_CHANNEL_ID = 1234567890  # CHANGE THIS TO YOUR PROOF CHANNEL ID
+PROOF_CHANNEL_ID = 1458163922262560840  # CHANGE THIS TO YOUR PROOF CHANNEL ID
 
 # Bot Setup
 intents = discord.Intents.default()
@@ -46,31 +46,27 @@ MM_COLOR = 0xFEE75C
 # MM Tier definitions with hierarchy
 MM_TIERS = {
     'basic': {
-        'name': '0-150M Middleman',
-        'range': '0-150M',
-        'description': 'Trades under Dragon / Traited Garamas etc',
-        'emoji': '🟢',
+        'name': '$1-$50 Middleman',
+        'range': '$1-$50',
+        'emoji': '💲',
         'level': 1
     },
     'advanced': {
-        'name': '150-500M Middleman',
-        'range': '150M-500M',
-        'description': 'Trades including Base Dragon / Mutated Garamas',
-        'emoji': '🔵',
+        'name': '$50-$100 Middleman',
+        'range': '$50-$100',
+        'emoji': '💸',
         'level': 2
     },
     'premium': {
-        'name': '500M+ Middleman',
-        'range': '500M+',
-        'description': 'Trades including Mutated / Traited Dragons',
-        'emoji': '🟣',
+        'name': '$100-$250 Middleman',
+        'range': '$100-$250',
+        'emoji': '💰',
         'level': 3
     },
     'og': {
-        'name': 'OG Middleman',
-        'range': 'All Trades',
-        'description': 'Trades including OG / Headless Horseman',
-        'emoji': '💎',
+        'name': '$250+ Middleman',
+        'range': '$250+',
+        'emoji': '💳',
         'level': 4
     }
 }
@@ -173,13 +169,6 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
             max_length=500
         )
 
-        self.both_join = TextInput(
-            label='Can both users join links?',
-            placeholder='YES or NO',
-            required=True,
-            max_length=10
-        )
-
         self.tip = TextInput(
             label='Will you tip the MM?',
             placeholder='Optional',
@@ -190,7 +179,6 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
         self.add_item(self.trader)
         self.add_item(self.giving)
         self.add_item(self.receiving)
-        self.add_item(self.both_join)
         self.add_item(self.tip)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -204,7 +192,6 @@ class MMTradeModal(Modal, title='Middleman Trade Details'):
                 self.trader.value,
                 self.giving.value,
                 self.receiving.value,
-                self.both_join.value,
                 self.tip.value if self.tip.value else 'None'
             )
             await interaction.followup.send('✅ Middleman ticket created! Check the ticket channel.', ephemeral=True)
@@ -287,28 +274,24 @@ class TierSelect(Select):
     def __init__(self):
         options = [
             discord.SelectOption(
-                label='0-150M Middleman',
-                description='Trades under Dragon / Traited Garamas etc',
+                label='$1-$50 Middleman',
                 value='basic',
-                emoji='🟢'
+                emoji='💲'
             ),
             discord.SelectOption(
-                label='150-500M Middleman',
-                description='Trades including Base Dragon / Mutated Garamas',
+                label='$50-$100 Middleman',
                 value='advanced',
-                emoji='🔵'
+                emoji='💸'
             ),
             discord.SelectOption(
-                label='500M+ Middleman',
-                description='Trades including Mutated / Traited Dragons',
+                label='$100-$250 Middleman',
                 value='premium',
-                emoji='🟣'
+                emoji='💰'
             ),
             discord.SelectOption(
-                label='OG Middleman',
-                description='Trades including OG / Headless Horseman',
+                label='$250+ Middleman',
                 value='og',
-                emoji='💎'
+                emoji='💳'
             )
         ]
         
@@ -645,7 +628,7 @@ async def setup(ctx):
     """Create MM ticket panel"""
     embed = discord.Embed(
         title='⚖️ Middleman Services',
-        description='Click the button below to open a middleman ticket.\n\n**Available Tiers:**\n🟢 **0-150M** - Trades under Dragon / Traited Garamas etc\n🔵 **150-500M** - Trades including Base Dragon / Mutated Garamas\n🟣 **500M+** - Trades including Mutated / Traited Dragons\n💎 **OG** - Trades including OG / Headless Horseman',
+        description='Click the button below to open a middleman ticket.\n\n**Available Tiers:**\n💲**$1-$50**\n💸 **$50-$100**\n💰 **$100-$250**\n💳 **$250+** ',
         color=MM_COLOR
     )
     embed.set_footer(text='Select your tier to get started')
@@ -810,7 +793,6 @@ async def add_user(ctx, member: discord.Member = None):
         description=f'✅ {member.mention} has been added to the ticket',
         color=0x57F287
     )
-    embed.timestamp = datetime.utcnow()
 
     await ctx.reply(embed=embed)
 
@@ -837,7 +819,6 @@ async def remove_user(ctx, member: discord.Member = None):
         description=f'✅ {member.mention} has been removed from the ticket',
         color=0x57F287
     )
-    embed.timestamp = datetime.utcnow()
 
     await ctx.reply(embed=embed)
 
@@ -1171,7 +1152,7 @@ async def coinflip(ctx, user1_input: str = None, vs: str = None, user2_input: st
     await ctx.send(embed=embed, view=view)
 
 # Helper Functions
-async def create_ticket_with_details(guild, user, tier, trader, giving, receiving, both_join, tip):
+async def create_ticket_with_details(guild, user, tier, trader, giving, receiving, tip):
     """Create MM ticket with tier-based permissions"""
     try:
         category = discord.utils.get(guild.categories, name=TICKET_CATEGORY)
@@ -1224,7 +1205,6 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
             'trader': trader,
             'giving': giving,
             'receiving': receiving,
-            'both_join': both_join,
             'tip': tip
         }
         
@@ -1268,12 +1248,6 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
         )
         
         embed.add_field(
-            name="🔗 Both Can Join Links?",
-            value=both_join,
-            inline=True
-        )
-        
-        embed.add_field(
             name="💰 Tip",
             value=tip if tip else "None",
             inline=True
@@ -1283,7 +1257,6 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
             text=f'Ticket created by {user.name}',
             icon_url=user.display_avatar.url
         )
-        embed.timestamp = datetime.utcnow()
         
         await ticket_channel.send(embed=embed, view=MMTicketView())
         save_data()
@@ -1346,7 +1319,7 @@ async def create_support_ticket(guild, user, reason, details):
         # GHOST PING: Ping user and staff, then delete it
         if staff_role:
             ping_msg = await ticket_channel.send(f"{staff_role.mention} {user.mention}")
-            await ping_msg.delete()
+            await ping_msg.send()
         
         # Send ticket embed
         embed = discord.Embed(
