@@ -769,7 +769,6 @@ async def support_setup(ctx):
     await ctx.send(embed=embed, view=SupportSetupView())
     await ctx.message.delete()
 
-# Claim Command
 @bot.command(name='claim')
 async def claim(ctx):
     """Claim a ticket"""
@@ -779,25 +778,27 @@ async def claim(ctx):
     
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in ticket channels!')
-    
-    if not ctx.channel.name.startswith('ticket-'):
-        return await ctx.reply('❌ This command can only be used in ticket channels!')
 
-    if ctx.channel.id in claimed_tickets:
-        return await ctx.reply('❌ This ticket is already claimed!')
-
-    ticket_data = active_tickets.get(ctx.channel.id)
+    # ✅ Get ticket from DATABASE
+    ticket_data = get_ticket(ctx.channel.id)
     if not ticket_data:
         return await ctx.reply('❌ Ticket data not found!')
     
+    # ✅ Check if already claimed (from DATABASE)
+    if ticket_data.get('claimed_by'):
+        claimer = ctx.guild.get_member(ticket_data['claimed_by'])
+        return await ctx.reply(f'❌ This ticket is already claimed by {claimer.mention if claimer else "someone"}!')
+    
     ticket_tier = ticket_data.get('tier')
     
-    if not can_see_tier(ctx.author.roles, ticket_tier) and not ctx.author.guild_permissions.administrator:
+    # Check permissions for MM tickets
+    if ticket_tier and not can_see_tier(ctx.author.roles, ticket_tier) and not ctx.author.guild_permissions.administrator:
         return await ctx.reply('❌ You do not have permission to claim this ticket tier!')
 
-    claimed_tickets[ctx.channel.id] = ctx.author.id
+    # ✅ Claim in DATABASE
+    claim_ticket_db(ctx.channel.id, ctx.author.id)
     
-    ticket_creator_id = ticket_data.get('user_id')
+    ticket_creator_id = ticket_data['user_id']
     ticket_creator = ctx.guild.get_member(ticket_creator_id) if ticket_creator_id else None
     
     await ctx.channel.set_permissions(
@@ -823,7 +824,6 @@ async def claim(ctx):
 
     await ctx.send(embed=embed)
     await ctx.channel.edit(name=f"{ctx.channel.name}-claimed")
-    save_data()
 
 # unclaim
 @bot.command(name='unclaim')
@@ -886,9 +886,6 @@ async def close_command(ctx):
     
     if not is_mm_or_admin(ctx.author, ctx.guild):
         return await ctx.reply('❌ You do not have permission to use this command!')
-    
-    if not ctx.channel.name.startswith('ticket-'):
-        return await ctx.reply('❌ This command can only be used in ticket channels!')
     
     if not ctx.channel.name.startswith('ticket-'):
         return await ctx.reply('❌ This command can only be used in ticket channels!')
@@ -1329,9 +1326,8 @@ async def create_ticket_with_details(guild, user, tier, trader, giving, receivin
         print(f'[ERROR] MM Ticket creation failed: {e}')
         raise
         
-
 async def create_support_ticket(guild, user, reason, details):
-    """Create a support ticket with staff ping and ghost ping"""
+    """Create a support ticket with staff ping"""
     try:
         category = discord.utils.get(guild.categories, name=SUPPORT_CATEGORY)
         if not category:
@@ -1372,19 +1368,20 @@ async def create_support_ticket(guild, user, reason, details):
             overwrites=overwrites
         )
         
-        # Store ticket data
-        active_tickets[ticket_channel.id] = {
-            'user_id': user.id,
-            'created_at': datetime.utcnow().isoformat(),
-            'type': 'support',
-            'reason': reason,
-            'details': details
-        }
+        # ✅ SAVE TO DATABASE (instead of active_tickets dictionary)
+        save_ticket(
+            ticket_channel.id,
+            user.id,
+            'support',
+            reason=reason,
+            details=details
+        )
         
-        # GHOST PING: Ping user and staff, then delete it
+        # Ping user and staff
         if staff_role:
-            ping_msg = await ticket_channel.send(f"{staff_role.mention} {user.mention}")
-            await ping_msg.send()
+            await ticket_channel.send(f"{staff_role.mention} {user.mention}")
+        else:
+            await ticket_channel.send(user.mention)
         
         # Send ticket embed
         embed = discord.Embed(
@@ -1412,7 +1409,6 @@ async def create_support_ticket(guild, user, reason, details):
         embed.timestamp = datetime.utcnow()
         
         await ticket_channel.send(embed=embed, view=SupportTicketView())
-        save_data()
         
     except Exception as e:
         print(f'[ERROR] Support Ticket creation failed: {e}')
