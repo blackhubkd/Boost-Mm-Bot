@@ -740,7 +740,7 @@ async def setup(ctx):
     """Create MM ticket panel"""
     embed = discord.Embed(
         title='⚖️ Middleman Services',
-        description='Click the button below to open a middleman ticket.\n\n**Available Tiers:**\n💲**$1-$50**\n💸 **$50-$100**\n💰 **$100-$250**\n💳 **$250+** ',
+        description='Click the button below to open a middleman ticket.\n\n**Available Tiers:**\n💲**$1-$15 Middleman**\n💸 **$15-$50 Middleman**\n💰 **$50-$150 Middleman**\n💳 **$150+ Middleman** ',
         color=MM_COLOR
     )
     embed.set_footer(text='Select your tier to get started')
