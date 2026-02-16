@@ -723,7 +723,6 @@ class MMTicketView(View):
 async def on_ready():
     print(f'✅ Bot is online as {bot.user}')
     print(f'📊 Serving {len(bot.guilds)} servers')
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='Offical Boost Mm Bot'))
     
     bot.add_view(TierSelectView())
     bot.add_view(MMTicketView())
