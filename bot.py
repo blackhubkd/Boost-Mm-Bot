@@ -31,7 +31,7 @@ def keep_alive():
 PREFIX = '$'
 DATABASE_URL = os.getenv('DATABASE_URL')
 TICKET_CATEGORY = 'MM Tickets'
-PROOF_CHANNEL_ID = 1458163922262560840  # CHANGE THIS TO YOUR PROOF CHANNEL ID
+PROOF_CHANNEL_ID = 1472858074086768774  # CHANGE THIS TO YOUR PROOF CHANNEL ID
 
 # Bot Setup
 intents = discord.Intents.default()
@@ -45,26 +45,26 @@ MM_COLOR = 0xFEE75C
 # MM Tier definitions with hierarchy
 MM_TIERS = {
     'basic': {
-        'name': '$1-$50 Middleman',
-        'range': '$1-$50',
+        'name': '$1-$15 Middleman',
+        'range': '$1-$15 Worth of Stuff',
         'emoji': '💲',
         'level': 1
     },
     'advanced': {
-        'name': '$50-$100 Middleman',
-        'range': '$50-$100',
+        'name': '$15-$50 Middleman',
+        'range': '$15-$50 Worth of Stuff',
         'emoji': '💸',
         'level': 2
     },
     'premium': {
-        'name': '$100-$250 Middleman',
-        'range': '$100-$250',
+        'name': '$50-$150 Middleman',
+        'range': '$50-$150 Worth of Stuff',
         'emoji': '💰',
         'level': 3
     },
     'og': {
-        'name': '$250+ Middleman',
-        'range': '$250+',
+        'name': '$150+ Middleman',
+        'range': '$150+ Worth of Stuff',
         'emoji': '💳',
         'level': 4
     }
@@ -72,14 +72,14 @@ MM_TIERS = {
 
 # MM Role IDs - UPDATE THESE WITH YOUR ROLE IDS
 MM_ROLE_IDS = {
-    "basic": 1458128965351768064,        # 0-150M role ID
-    "advanced": 1458129219862134794,     # 150-500M role ID
-    "premium": 1458129300065751141,      # 500M+ role ID
-    "og": 1458129476423778305            # OG MM role ID
+    "basic": 1427769765484695666,        # 0-150M role ID
+    "advanced": 1424908470075003032,     # 150-500M role ID
+    "premium": 1426475143924027393,      # 500M+ role ID
+    "og": 1425251754584309905         # OG MM role ID
 }
 
 SUPPORT_CATEGORY = 'Support Tickets'
-STAFF_ROLE_ID = 1458152494923251833
+STAFF_ROLE_ID = 1407252499760680960
 
 
 def init_database():
@@ -390,22 +390,22 @@ class TierSelect(Select):
     def __init__(self):
         options = [
             discord.SelectOption(
-                label='$1-$50 Middleman',
+                label='$1-$15 Middleman',
                 value='basic',
                 emoji='💲'
             ),
             discord.SelectOption(
-                label='$50-$100 Middleman',
+                label='$15-$50 Middleman',
                 value='advanced',
                 emoji='💸'
             ),
             discord.SelectOption(
-                label='$100-$250 Middleman',
+                label='$50-$150 Middleman',
                 value='premium',
                 emoji='💰'
             ),
             discord.SelectOption(
-                label='$250+ Middleman',
+                label='$150+ Middleman',
                 value='og',
                 emoji='💳'
             )
